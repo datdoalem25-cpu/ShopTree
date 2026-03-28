@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const QRCode = require('qrcode');
 const Product = require('../models/Product');
 const { uploadBuffer, uploadDataUrl } = require('../config/cloudinary');
@@ -25,7 +25,8 @@ const createProduct = async ({ farmerName, farmerUserId, name, description, quan
     throw error;
   }
 
-  const batchSerialNumber = `BAT-${uuidv4().substring(0, 6).toUpperCase()}`;
+  const batchToken = randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase();
+  const batchSerialNumber = `BAT-${batchToken}`;
   const publicBaseUrl = (process.env.FRONTEND_ORIGIN || '').replace(/\/$/, '');
   const fallbackTrackBase = (process.env.PUBLIC_TRACK_BASE_URL || 'http://localhost:5173').replace(/\/$/, '');
   const trackBaseUrl = publicBaseUrl || fallbackTrackBase;
