@@ -1,5 +1,9 @@
 const User = require('../models/User');
 
+exports.updateFullName = async (userId, newFullName) => {
+  return await User.findByIdAndUpdate(userId, { fullName: newFullName }, { new: true });
+};
+
 exports.updateEmail = async (userId, newEmail) => {
   // Kiểm tra email đã tồn tại chưa
   const existingUser = await User.findOne({ email: newEmail });

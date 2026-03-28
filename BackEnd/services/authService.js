@@ -1,5 +1,24 @@
 const User = require('../models/User');
 
+// Đảm bảo luôn có tài khoản admin mặc định để tránh lỗi không đăng nhập được admin
+const ensureDefaultAdmin = async () => {
+  const adminEmail = 'admin@gmail.com';
+  const adminPassword = 'admintest';
+
+  const existingAdmin = await User.findOne({ email: adminEmail, role: 'ADMIN' });
+  if (existingAdmin) return existingAdmin;
+
+  const adminUser = new User({
+    fullName: 'Quản trị viên Cấp cao',
+    email: adminEmail,
+    password: adminPassword,
+    role: 'ADMIN',
+  });
+
+  await adminUser.save();
+  return adminUser;
+};
+
 // Đăng ký tài khoản mới
 const registerUser = async (fullName, email, password) => {
   const existingUser = await User.findOne({ email });
@@ -23,7 +42,7 @@ const loginUser = async (email, password) => {
     throw error;
   }
 
-  return { id: user._id, fullName: user.fullName, role: user.role };
+  return { id: user._id, fullName: user.fullName, email: user.email, role: user.role };
 };
 
-module.exports = { registerUser, loginUser };
+module.exports = { registerUser, loginUser, ensureDefaultAdmin };

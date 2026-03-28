@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { showAlert } from '../services/dialog';
 import './LoginPage.css';
 
 const ADMIN_EMAIL = 'admin@gmail.com';
@@ -30,14 +31,14 @@ export default function LoginPage() {
   const onLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
-      alert('Vui lòng nhập đầy đủ email và mật khẩu!');
+      await showAlert('Vui lòng nhập đầy đủ email và mật khẩu!', { tone: 'warning' });
       return;
     }
     setLoading(true);
     setBtnText('Đang xử lý...');
     const result = await handleLogin(email, password);
     if (!result.success) {
-      alert(result.message);
+      await showAlert(result.message, { tone: 'danger' });
       setBtnText('Đăng nhập');
       setLoading(false);
     }

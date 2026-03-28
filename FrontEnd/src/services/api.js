@@ -4,6 +4,14 @@
 
 const API_BASE = 'http://localhost:5000';
 
+function buildAuthHeaders(user, extraHeaders = {}) {
+  return {
+    'x-user-id': user?.id || '',
+    'x-user-role': user?.role || '',
+    ...extraHeaders,
+  };
+}
+
 // ===== AUTH =====
 
 export async function loginApi(email, password) {
@@ -28,16 +36,36 @@ export async function registerApi(fullName, email, password) {
 
 // ===== PRODUCTS =====
 
-export async function getProductsApi() {
-  const response = await fetch(`${API_BASE}/api/v1/products`);
+export async function getMyProductsApi(user) {
+  const response = await fetch(`${API_BASE}/api/v1/farmer/products`, {
+    headers: buildAuthHeaders(user),
+  });
   const result = await response.json();
   return result;
 }
 
-export async function createProductApi(formData) {
+export async function createProductApi(formData, user) {
   const response = await fetch(`${API_BASE}/api/v1/farmer/products`, {
     method: 'POST',
+    headers: buildAuthHeaders(user),
     body: formData
+  });
+  return { ok: response.ok };
+}
+
+export async function updateProductApi(productId, data, user) {
+  const response = await fetch(`${API_BASE}/api/v1/farmer/products/${productId}`, {
+    method: 'PATCH',
+    headers: buildAuthHeaders(user, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data)
+  });
+  return { ok: response.ok };
+}
+
+export async function deleteProductApi(productId, user) {
+  const response = await fetch(`${API_BASE}/api/v1/farmer/products/${productId}`, {
+    method: 'DELETE',
+    headers: buildAuthHeaders(user),
   });
   return { ok: response.ok };
 }
@@ -64,13 +92,34 @@ export async function updateProductStatusApi(productId, newStatus) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: newStatus })
   });
-  return { ok: response.ok };
+  const result = await response.json().catch(() => ({}));
+  return {
+    ok: response.ok,
+    message: result?.message,
+    data: result?.data,
+  };
 }
 
 export async function getUsersApi() {
   const response = await fetch(`${API_BASE}/api/v1/admin/users`);
   const result = await response.json();
   return result;
+}
+
+export async function createUserByAdminApi(payload) {
+  const response = await fetch(`${API_BASE}/api/v1/admin/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  return { ok: response.ok, data: result };
+}
+
+export async function getAuditLogsApi() {
+  const response = await fetch(`${API_BASE}/api/v1/admin/audit-logs`);
+  const result = await response.json().catch(() => ({}));
+  return { ok: response.ok, data: result };
 }
 
 // Helper: Tạo đường dẫn đầy đủ cho ảnh từ server
@@ -80,23 +129,35 @@ export function getImageUrl(path) {
 
 // ===== DIARY =====
 
-export async function createDiaryApi(data) {
+export async function createDiaryApi(data, user) {
   const response = await fetch(`${API_BASE}/api/v1/farmer/diary`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildAuthHeaders(user, { 'Content-Type': 'application/json' }),
     body: JSON.stringify(data)
   });
   const result = await response.json();
   return { ok: response.ok, data: result };
 }
 
-export async function getDiariesApi(farmerId) {
-  const response = await fetch(`${API_BASE}/api/v1/farmer/diary?farmerId=${farmerId}`);
+export async function getDiariesApi(user) {
+  const response = await fetch(`${API_BASE}/api/v1/farmer/diary`, {
+    headers: buildAuthHeaders(user),
+  });
   const result = await response.json();
   return result;
 }
 
 // ===== SETTINGS =====
+
+export async function changeFullNameApi(userId, newFullName) {
+  const response = await fetch(`${API_BASE}/api/v1/users/settings/name`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, newFullName })
+  });
+  const result = await response.json();
+  return { ok: response.ok, data: result };
+}
 
 export async function changeEmailApi(userId, newEmail) {
   const response = await fetch(`${API_BASE}/api/v1/users/settings/email`, {

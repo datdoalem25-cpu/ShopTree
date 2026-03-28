@@ -1,14 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import './SearchPage.css';
 
 export default function SearchPage() {
   const [batchId, setBatchId] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [history, setHistory] = useState([]);
-  const [lang, setLang] = useState('VI');
+  const [scanError, setScanError] = useState('');
   const scannerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,6 +30,19 @@ export default function SearchPage() {
     }
   };
 
+  const handleDecodedResult = useCallback((decodedText) => {
+    try {
+      const url = new URL(decodedText);
+      const id = url.searchParams.get('id');
+      const searchId = id || decodedText;
+      saveToHistory(searchId);
+      navigate(`/track?id=${searchId}`);
+    } catch {
+      saveToHistory(decodedText);
+      navigate(`/track?id=${decodedText}`);
+    }
+  }, [navigate, history]);
+
   const openCamera = useCallback(() => {
     setCameraOpen(true);
     setTimeout(() => {
@@ -40,21 +54,13 @@ export default function SearchPage() {
       scannerRef.current.render(
         (decodedText) => {
           closeCamera();
-          try {
-            const url = new URL(decodedText);
-            const id = url.searchParams.get('id');
-            const searchId = id || decodedText;
-            saveToHistory(searchId);
-            navigate(`/track?id=${searchId}`);
-          } catch {
-            saveToHistory(decodedText);
-            navigate(`/track?id=${decodedText}`);
-          }
+          setScanError('');
+          handleDecodedResult(decodedText);
         },
         () => { /* Scanning... */ }
       );
     }, 100);
-  }, [navigate]);
+  }, [handleDecodedResult]);
 
   const closeCamera = () => {
     setCameraOpen(false);
@@ -63,13 +69,36 @@ export default function SearchPage() {
     }
   };
 
+  const scanFromFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
+      setScanError('Tệp PDF chưa hỗ trợ quét trực tiếp. Vui lòng tải QR dạng ảnh PNG/JPG rồi quét lại.');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setScanError('Chỉ hỗ trợ quét từ tệp ảnh QR (PNG/JPG/JPEG/WebP).');
+      return;
+    }
+
+    const fileScanner = new Html5Qrcode('qr-file-reader');
+    try {
+      const decodedText = await fileScanner.scanFile(file, true);
+      setScanError('');
+      handleDecodedResult(decodedText);
+    } catch {
+      setScanError('Không đọc được mã QR từ ảnh này. Hãy thử ảnh rõ nét hơn.');
+    } finally {
+      await fileScanner.clear().catch(() => {});
+    }
+  };
+
   return (
     <div className="search-page">
-      <div className="lang-toggle">
-        <button className={`lang-btn ${lang === 'VI' ? 'active' : ''}`} onClick={() => setLang('VI')}>VI</button>
-        <button className={`lang-btn ${lang === 'EN' ? 'active' : ''}`} onClick={() => setLang('EN')}>EN</button>
-      </div>
-
       <div className="search-header-container">
         <div className="logo-circle">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -111,6 +140,8 @@ export default function SearchPage() {
           </button>
         </div>
 
+        {scanError && <p className="scan-error-text">{scanError}</p>}
+
         <div className="divider"></div>
 
         <div className="history-section">
@@ -141,10 +172,29 @@ export default function SearchPage() {
           <div className="camera-modal">
             <h3 className="camera-modal-title">Đưa mã QR vào khung hình</h3>
             <div id="qr-reader" className="qr-box"></div>
+            <button
+              className="btn-upload-modal"
+              onClick={() => {
+                closeCamera();
+                setTimeout(() => fileInputRef.current?.click(), 120);
+              }}
+            >
+              Tải ảnh QR từ máy
+            </button>
             <button className="btn-close-modal" onClick={closeCamera}>Đóng Camera</button>
           </div>
         </div>
       )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp,.pdf"
+        style={{ display: 'none' }}
+        onChange={scanFromFile}
+      />
+
+      <div id="qr-file-reader" style={{ display: 'none' }}></div>
     </div>
   );
 }

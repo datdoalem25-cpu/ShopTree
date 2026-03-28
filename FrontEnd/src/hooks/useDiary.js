@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react';
 import { getDiariesApi, createDiaryApi } from '../services/api';
 
-export function useDiary(farmerId) {
+export function useDiary(user) {
   const [diaries, setDiaries] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const loadDiaries = useCallback(async () => {
-    if (!farmerId) return;
+    if (!user?.id) return;
     setLoading(true);
     try {
-      const result = await getDiariesApi(farmerId);
+      const result = await getDiariesApi(user);
       if (result.status === 'success') {
         setDiaries(result.data || []);
       }
@@ -18,23 +18,20 @@ export function useDiary(farmerId) {
     } finally {
       setLoading(false);
     }
-  }, [farmerId]);
+  }, [user]);
 
   const addDiary = async (data) => {
     try {
-      const result = await createDiaryApi(data);
+      const result = await createDiaryApi(data, user);
       if (result.ok) {
-        alert('Đã thêm nhật ký thành công!');
         loadDiaries(); // re-fetch locally
-        return true;
+        return { ok: true, message: 'Đã thêm nhật ký thành công!' };
       } else {
-        alert(result.data.message || 'Thêm nhật ký thất bại');
-        return false;
+        return { ok: false, message: result.data.message || 'Thêm nhật ký thất bại' };
       }
     } catch (e) {
       console.error(e);
-      alert('Lỗi kết nối Server');
-      return false;
+      return { ok: false, message: 'Lỗi kết nối Server' };
     }
   };
 

@@ -1,21 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getProductsApi, createProductApi } from '../services/api';
+import { getMyProductsApi, createProductApi, updateProductApi, deleteProductApi } from '../services/api';
+import { showAlert, showConfirm } from '../services/dialog';
 
-export function useProducts() {
+export function useProducts(user) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadProducts = useCallback(async () => {
+    if (!user?.id) {
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const result = await getProductsApi();
+      const result = await getMyProductsApi(user);
       setProducts(result.data || []);
     } catch (e) {
       console.error('Lỗi load products:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadProducts();
@@ -23,14 +30,52 @@ export function useProducts() {
 
   const createProduct = async (formData) => {
     try {
-      const result = await createProductApi(formData);
+      const result = await createProductApi(formData, user);
       if (result.ok) {
-        alert('Đã gửi lô hàng! Chờ Admin phê duyệt.');
+        await showAlert('Đã gửi lô hàng! Chờ Admin phê duyệt.', { tone: 'success' });
         loadProducts();
         return true;
       }
     } catch {
-      alert('Lỗi server');
+      await showAlert('Lỗi server', { tone: 'danger' });
+    }
+    return false;
+  };
+
+  const updateProduct = async (id, data) => {
+    try {
+      const result = await updateProductApi(id, data, user);
+      if (result.ok) {
+        await showAlert('Cập nhật sản phẩm thành công!', { tone: 'success' });
+        loadProducts();
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+      await showAlert('Lỗi cập nhật sản phẩm', { tone: 'danger' });
+    }
+    return false;
+  };
+
+  const deleteProduct = async (id) => {
+    const confirmed = await showConfirm('Bạn có chắc chắn muốn xóa sản phẩm này?', {
+      tone: 'warning',
+      title: 'Xác nhận xóa',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    });
+    if (!confirmed) return false;
+
+    try {
+      const result = await deleteProductApi(id, user);
+      if (result.ok) {
+        await showAlert('Đã xóa sản phẩm!', { tone: 'success' });
+        loadProducts();
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+      await showAlert('Lỗi xóa sản phẩm', { tone: 'danger' });
     }
     return false;
   };
@@ -43,5 +88,5 @@ export function useProducts() {
     rejected: products.filter(p => p.status === 'REJECTED').length,
   };
 
-  return { products, stats, loading, loadProducts, createProduct };
+  return { products, stats, loading, loadProducts, createProduct, updateProduct, deleteProduct };
 }

@@ -79,3 +79,112 @@ button {
   background-color: var(--color-primary-bg);
   color: var(--color-primary-light);
 }
+
+.app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 5000;
+}
+
+.app-dialog-card {
+  width: min(420px, 100%);
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.2);
+  padding: 18px;
+}
+
+.app-dialog-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.app-dialog-icon.tone-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.app-dialog-icon.tone-danger,
+.app-dialog-icon.tone-warning {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.app-dialog-icon.tone-info {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.app-dialog-card h3 {
+  margin: 10px 0 0;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.app-dialog-card p {
+  margin: 8px 0 0;
+  color: #475569;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.app-dialog-input {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.app-dialog-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.app-dialog-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.app-dialog-btn.ghost {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.app-dialog-btn.primary {
+  color: #ffffff;
+}
+
+.app-dialog-btn.primary.tone-success {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.app-dialog-btn.primary.tone-danger,
+.app-dialog-btn.primary.tone-warning {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+.app-dialog-btn.primary.tone-info {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}

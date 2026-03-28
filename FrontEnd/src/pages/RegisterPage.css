@@ -1,6 +1,6 @@
-body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-.register-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); width: 100%; max-width: 400px; text-align: center; margin: 20px;}
-.register-box .logo { background: #e8f5e9; color: #00a65a; width: 50px; height: 50px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; margin: 0 auto 15px; }
+.register-page { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100dvh; margin: 0; padding: 20px 16px; }
+.register-box { background: white; padding: clamp(20px, 4vw, 40px); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); width: 100%; max-width: min(400px, 100%); text-align: center; margin: 0;}
+.register-box .logo { background: #e8f5e9; color: #00a65a; width: clamp(44px, 8vw, 50px); height: clamp(44px, 8vw, 50px); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: clamp(20px, 4vw, 24px); margin: 0 auto 15px; }
 .register-box h2 { margin: 0 0 5px; color: #111; }
 .register-box p { color: #666; font-size: 14px; margin-bottom: 25px; }
 .form-group { text-align: left; margin-bottom: 15px; }
@@ -11,3 +11,9 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f7f6; d
 .btn-register:hover { background: #008f4d; }
 .footer-text { margin-top: 25px; font-size: 14px; color: #666;}
 .footer-text a { color: #00a65a; font-weight: bold; text-decoration: none;}
+
+@media (max-width: 480px) {
+	.register-box {
+		border-radius: 10px;
+	}
+}

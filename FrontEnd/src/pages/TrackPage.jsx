@@ -7,10 +7,18 @@ export default function TrackPage() {
   const [searchParams] = useSearchParams();
   const batchId = searchParams.get('id');
   const [product, setProduct] = useState(null);
+  const [diaries, setDiaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const navigate = useNavigate();
+
+  const buildDescriptionFallback = (p) => {
+    if (!p) return 'Thông tin mô tả sản phẩm đang được cập nhật.';
+    const quantityText = p.quantity && p.unit ? `${p.quantity} ${p.unit}` : 'không xác định số lượng';
+    const priceText = Number.isFinite(Number(p.price)) ? `${Number(p.price).toLocaleString('vi-VN')}đ/${p.unit || 'đơn vị'}` : 'đang cập nhật giá';
+    return `${p.name || 'Sản phẩm nông sản'} do ${p.farmerId || 'nhà sản xuất đã đăng ký'} cung cấp, quy cách ${quantityText}, giá ${priceText}.`;
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -23,7 +31,14 @@ export default function TrackPage() {
       try {
         const result = await trackProductApi(batchId);
         if (result.ok) {
-          setProduct(result.data.data);
+          const payload = result.data?.data;
+          if (payload?.product) {
+            setProduct(payload.product);
+            setDiaries(payload.diaries || []);
+          } else {
+            setProduct(payload);
+            setDiaries([]);
+          }
         } else {
           setError('Không tìm thấy thông tin lô hàng này trong hệ thống!');
         }
@@ -88,7 +103,6 @@ export default function TrackPage() {
             <div className="track-tabs">
               <button className={`track-tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Tổng quan</button>
               <button className={`track-tab-btn ${activeTab === 'diary' ? 'active' : ''}`} onClick={() => setActiveTab('diary')}>Nhật ký</button>
-              <button className={`track-tab-btn ${activeTab === 'evidence' ? 'active' : ''}`} onClick={() => setActiveTab('evidence')}>Minh chứng</button>
             </div>
 
             {activeTab === 'overview' && (
@@ -99,19 +113,27 @@ export default function TrackPage() {
                   </div>
                   <div className="card-content">
                     <div className="card-label">Thông tin người sản xuất</div>
-                    <div className="card-value">Nguyễn Văn A</div>
-                    <div className="card-subtext">HTX Nông nghiệp Công nghệ cao</div>
+                    <div className="card-value">{product.farmerId || 'Đang cập nhật'}</div>
+                    <div className="card-subtext">Nhà sản xuất đã đăng ký trong hệ thống</div>
                   </div>
                 </div>
 
-                <div className="info-card verifier">
+                <div className="info-card authority">
                   <div className="card-icon-box">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   </div>
                   <div className="card-content">
-                    <div className="card-label">Thông tin đơn vị xác thực</div>
-                    <div className="card-value">Chi cục Trồng trọt & BVTV</div>
-                    <div className="card-subtext">Xác thực ngày: 2026-02-05</div>
+                    <div className="card-label">Thông tin phê duyệt hệ thống</div>
+                    <div className="card-value">Quản trị hệ thống nông sản</div>
+                    <div className="card-subtext">
+                      Trạng thái: {
+                        product.status === 'APPROVED'
+                          ? 'Đã được Admin phê duyệt'
+                          : product.status === 'PENDING'
+                            ? 'Đang chờ Admin phê duyệt'
+                            : 'Đã bị Admin từ chối'
+                      }
+                    </div>
                   </div>
                 </div>
 
@@ -122,7 +144,7 @@ export default function TrackPage() {
                   <div className="card-content">
                     <div className="card-label">Mô tả sản phẩm</div>
                     <div className="description-text">
-                      {product.name} hữu cơ, không thuốc trừ sâu. Được trồng theo phương pháp nông nghiệp công nghệ cao tại Đà Lạt, đảm bảo an toàn vệ sinh thực phẩm cho người tiêu dùng.
+                      {product.description?.trim() || buildDescriptionFallback(product)}
                     </div>
                   </div>
                 </div>
@@ -130,14 +152,31 @@ export default function TrackPage() {
             )}
 
             {activeTab === 'diary' && (
-              <div className="tab-content-container fade-in" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
-                <p>Tính năng xem Nhật ký chăm sóc đang được cập nhật...</p>
-              </div>
-            )}
-
-            {activeTab === 'evidence' && (
-              <div className="tab-content-container fade-in" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
-                <p>Hình ảnh minh chứng quy trình đang được cập nhật...</p>
+              <div className="tab-content-container fade-in">
+                {diaries.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                    <p>Chưa có nhật ký chăm sóc nào cho sản phẩm này.</p>
+                  </div>
+                ) : (
+                  <div className="track-diary-list">
+                    {diaries.map((entry, index) => (
+                      <article className="track-diary-item" key={`${entry._id || index}`}>
+                        <div className="track-diary-header">
+                          <h4>{entry.activityTitle}</h4>
+                          <span>
+                            {entry.actionDate
+                              ? new Date(entry.actionDate).toLocaleDateString('vi-VN')
+                              : 'Không có ngày'}
+                          </span>
+                        </div>
+                        <p>{entry.description}</p>
+                        <div className="track-diary-meta">
+                          Ghi nhận: {entry.recordedAt ? new Date(entry.recordedAt).toLocaleString('vi-VN') : 'Đang cập nhật'}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

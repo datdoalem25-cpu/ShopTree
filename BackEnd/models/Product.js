@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
   farmerId: { type: String, required: true }, // Sau này sẽ lưu tên thật của Nông dân
+  farmerUserId: { type: String }, // Lưu _id tài khoản nông dân để đối soát chính xác người upload
   name: { type: String, required: true }, 
+  description: { type: String, default: '' },
   quantity: { type: Number, required: true },
   unit: { type: String, required: true }, 
   price: { type: Number, required: true },

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { showAlert } from '../services/dialog';
 import './RegisterPage.css';
 
 export default function RegisterPage() {
@@ -15,7 +16,7 @@ export default function RegisterPage() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert('Mật khẩu xác nhận không khớp!');
+      await showAlert('Mật khẩu xác nhận không khớp!', { tone: 'warning' });
       return;
     }
     setBtnText('Đang xử lý...');
@@ -23,14 +24,14 @@ export default function RegisterPage() {
 
     const result = await handleRegister(fullName, email, password);
     if (!result.success) {
-      alert(result.message);
+      await showAlert(result.message, { tone: 'danger' });
     }
     setBtnText('Đăng ký tài khoản');
     setDisabled(false);
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div className="register-page">
       <div className="register-box">
         <div className="logo">📝</div>
         <h2>Tạo tài khoản mới</h2>

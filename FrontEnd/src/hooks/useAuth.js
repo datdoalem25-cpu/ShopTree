@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginApi, registerApi } from '../services/api';
+import { showAlert } from '../services/dialog';
 
 export function useAuth(requiredRole = null) {
   const [user, setUser] = useState(null);
@@ -15,7 +16,7 @@ export function useAuth(requiredRole = null) {
 
       // Redirect nếu không đúng role
       if (requiredRole && parsed.role !== requiredRole) {
-        alert('Bạn không có quyền truy cập trang này!');
+        showAlert('Bạn không có quyền truy cập trang này!', { tone: 'danger' });
         navigate('/');
       }
     } else if (requiredRole) {
@@ -52,7 +53,7 @@ export function useAuth(requiredRole = null) {
     try {
       const result = await registerApi(fullName, email, password);
       if (result.ok) {
-        alert('Đăng ký thành công! Đang chuyển về trang Đăng nhập...');
+        showAlert('Đăng ký thành công! Đang chuyển về trang Đăng nhập...', { tone: 'success' });
         navigate('/');
         return { success: true };
       } else {

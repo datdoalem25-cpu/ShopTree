@@ -5,7 +5,7 @@ const statConfig = {
   rejected: { bg: '#fee2e2', color: '#dc2626', link: null }
 };
 
-export default function StatCard({ title, value, icon, statType = 'total' }) {
+export default function StatCard({ title, value, icon, statType = 'total', onLinkClick }) {
   const config = statConfig[statType] || statConfig.total;
 
   return (
@@ -38,9 +38,24 @@ export default function StatCard({ title, value, icon, statType = 'total' }) {
         <div style={{ fontSize: '32px', fontWeight: '700', color: '#1e293b' }}>{value}</div>
       </div>
       {config.link && (
-        <a href="#" style={{ fontSize: '13px', color: '#208753', fontWeight: '600', marginTop: 'auto', textDecoration: 'none' }}>
+        <button
+          type="button"
+          onClick={onLinkClick}
+          style={{
+            fontSize: '13px',
+            color: '#208753',
+            fontWeight: '600',
+            marginTop: 'auto',
+            textDecoration: 'none',
+            background: 'transparent',
+            border: 'none',
+            cursor: onLinkClick ? 'pointer' : 'default',
+            padding: 0,
+            textAlign: 'left'
+          }}
+        >
           {config.link}
-        </a>
+        </button>
       )}
     </div>
   );

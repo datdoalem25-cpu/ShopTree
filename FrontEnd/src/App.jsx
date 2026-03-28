@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import SearchPage from './pages/SearchPage';
 import TrackPage from './pages/TrackPage';
+import DialogHost from './components/DialogHost';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/track" element={<TrackPage />} />
       </Routes>
+      <DialogHost />
     </BrowserRouter>
   );
 }

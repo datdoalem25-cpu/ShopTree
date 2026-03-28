@@ -1,5 +1,24 @@
 const userService = require('../services/userService');
 
+exports.changeFullName = async (req, res) => {
+  try {
+    const { userId, newFullName } = req.body;
+    if (!userId || !newFullName) {
+      return res.status(400).json({ status: 'error', message: 'Thiếu thông tin yêu cầu' });
+    }
+
+    const trimmedName = String(newFullName).trim();
+    if (trimmedName.length < 2) {
+      return res.status(400).json({ status: 'error', message: 'Họ và tên không hợp lệ' });
+    }
+
+    const updatedUser = await userService.updateFullName(userId, trimmedName);
+    res.status(200).json({ status: 'success', data: updatedUser, message: 'Cập nhật họ và tên thành công' });
+  } catch (error) {
+    res.status(400).json({ status: 'error', message: error.message });
+  }
+};
+
 exports.changeEmail = async (req, res) => {
   try {
     const { userId, newEmail } = req.body;

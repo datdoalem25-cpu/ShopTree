@@ -11,4 +11,10 @@ router.put('/products/:id/status', adminController.updateStatus);
 // GET /api/v1/admin/users
 router.get('/users', adminController.getUsers);
 
+// POST /api/v1/admin/users
+router.post('/users', adminController.createUser);
+
+// GET /api/v1/admin/audit-logs
+router.get('/audit-logs', adminController.getAuditLogs);
+
 module.exports = router;
