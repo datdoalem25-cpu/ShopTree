@@ -1,7 +1,7 @@
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const Product = require('../models/Product');
+const { uploadBuffer, uploadDataUrl } = require('../config/cloudinary');
 
 const buildOwnerFilter = (ownerId, ownerName) => ({
   $or: [
@@ -12,13 +12,41 @@ const buildOwnerFilter = (ownerId, ownerName) => ({
 });
 
 // Nông dân tạo lô hàng mới (chờ duyệt)
-const createProduct = async ({ farmerName, farmerUserId, name, description, quantity, unit, price, filename }) => {
-  const batchSerialNumber = `BAT-${uuidv4().substring(0, 6).toUpperCase()}`;
-  const qrCodeContent = `http://127.0.0.1:5500/track.html?id=${batchSerialNumber}`;
+const createProduct = async ({ farmerName, farmerUserId, name, description, quantity, unit, price, imageBuffer, imageMimeType }) => {
+  if (!imageBuffer) {
+    const error = new Error('Thiếu ảnh sản phẩm để upload.');
+    error.statusCode = 400;
+    throw error;
+  }
 
-  const qrOutputFileName = `qr-${batchSerialNumber}.png`;
-  const uploadDir = path.join(__dirname, '..', 'uploads');
-  await QRCode.toFile(path.join(uploadDir, qrOutputFileName), qrCodeContent);
+  if (imageMimeType && !String(imageMimeType).startsWith('image/')) {
+    const error = new Error('Tệp upload phải là ảnh hợp lệ.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const batchSerialNumber = `BAT-${uuidv4().substring(0, 6).toUpperCase()}`;
+  const publicBaseUrl = (process.env.FRONTEND_ORIGIN || '').replace(/\/$/, '');
+  const fallbackTrackBase = (process.env.PUBLIC_TRACK_BASE_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const trackBaseUrl = publicBaseUrl || fallbackTrackBase;
+  const qrCodeContent = `${trackBaseUrl}/track?id=${batchSerialNumber}`;
+
+  const safeBatch = batchSerialNumber.toLowerCase();
+  const productImageUpload = await uploadBuffer({
+    buffer: imageBuffer,
+    folder: 'nongsan/products',
+    publicId: `product-${safeBatch}`,
+  });
+
+  const qrDataUrl = await QRCode.toDataURL(qrCodeContent, {
+    margin: 1,
+    width: 720,
+  });
+  const qrImageUpload = await uploadDataUrl({
+    dataUrl: qrDataUrl,
+    folder: 'nongsan/qrcodes',
+    publicId: `qr-${safeBatch}`,
+  });
 
   const newProduct = new Product({
     farmerId: farmerName,
@@ -28,9 +56,9 @@ const createProduct = async ({ farmerName, farmerUserId, name, description, quan
     quantity,
     unit,
     price,
-    productImageUrl: '/uploads/' + filename,
+    productImageUrl: productImageUpload.secure_url,
     batchSerialNumber, qrCodeContent,
-    qrCodeImageUrl: `/uploads/${qrOutputFileName}`,
+    qrCodeImageUrl: qrImageUpload.secure_url,
     status: 'PENDING'
   });
 

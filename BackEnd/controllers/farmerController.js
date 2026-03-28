@@ -24,7 +24,9 @@ const createProduct = async (req, res) => {
       quantity,
       unit,
       price,
-      filename: req.file.filename
+      imageBuffer: req.file.buffer,
+      imageMimeType: req.file.mimetype,
+      originalName: req.file.originalname,
     });
 
     res.status(201).json({ status: 'success', data: newProduct });

@@ -2,7 +2,7 @@
 //   API SERVICE - Tập trung tất cả API calls
 // ==========================================
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 function buildAuthHeaders(user, extraHeaders = {}) {
   return {
@@ -124,6 +124,8 @@ export async function getAuditLogsApi() {
 
 // Helper: Tạo đường dẫn đầy đủ cho ảnh từ server
 export function getImageUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
   return `${API_BASE}${path}`;
 }
 
