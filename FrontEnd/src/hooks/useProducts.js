@@ -36,6 +36,7 @@ export function useProducts(user) {
         loadProducts();
         return true;
       }
+      await showAlert(result.message || 'Gửi phê duyệt thất bại. Vui lòng thử lại.', { tone: 'danger' });
     } catch {
       await showAlert('Lỗi server', { tone: 'danger' });
     }
@@ -46,7 +47,12 @@ export function useProducts(user) {
     try {
       const result = await updateProductApi(id, data, user);
       if (result.ok) {
-        await showAlert('Cập nhật sản phẩm thành công!', { tone: 'success' });
+        // Kiểm tra xem backend có trả về status PENDING không (nghĩa là đã APPROVED trước đó)
+        const isPendingReview = result.data?.status === 'PENDING' && result.data?.pendingUpdate != null;
+        const message = isPendingReview
+          ? 'Yêu cầu sửa đổi đã được gửi! Admin sẽ duyệt trước khi áp dụng.'
+          : 'Cập nhật sản phẩm thành công!';
+        await showAlert(message, { tone: 'success' });
         loadProducts();
         return true;
       }

@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
-  farmerId: { type: String, required: true }, // Sau này sẽ lưu tên thật của Nông dân
-  farmerUserId: { type: String }, // Lưu _id tài khoản nông dân để đối soát chính xác người upload
+  farmerId: { type: String, required: true },
+  farmerUserId: { type: String },
   name: { type: String, required: true }, 
   description: { type: String, default: '' },
   quantity: { type: Number, required: true },
@@ -16,7 +16,21 @@ const ProductSchema = new mongoose.Schema({
   productImageUrl: { type: String, required: true },
   batchSerialNumber: { type: String, required: true, unique: true }, 
   qrCodeContent: { type: String, required: true },                   
-  qrCodeImageUrl: { type: String, required: true },                  
+  qrCodeImageUrl: { type: String, required: true },
+
+  // Lưu thay đổi tạm khi nông dân sửa sản phẩm đã APPROVED
+  // Khi admin duyệt → merge vào field chính, xóa pendingUpdate
+  pendingUpdate: {
+    type: new mongoose.Schema({
+      name: String,
+      description: String,
+      quantity: Number,
+      unit: String,
+      price: Number,
+    }, { _id: false }),
+    default: null,
+  },
+
   createdAt: { type: Date, default: Date.now },
 });
 

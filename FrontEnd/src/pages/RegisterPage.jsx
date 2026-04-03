@@ -15,8 +15,8 @@ export default function RegisterPage() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (password !== confirmPassword) {
-      await showAlert('Mật khẩu xác nhận không khớp!', { tone: 'warning' });
+    if (password !== confirmPassword  || password.length < 8) {
+      await showAlert('Mật khẩu xác nhận không khớp hoặc mật khẩu quá ngắn!', { tone: 'warning' });
       return;
     }
     setBtnText('Đang xử lý...');

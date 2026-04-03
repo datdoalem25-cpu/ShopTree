@@ -12,11 +12,11 @@ const register = async (req, res) => {
   }
 };
 
-// 2. ĐĂNG NHẬP
+// 2. ĐĂNG NHẬP (hỗ trợ 2FA)
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const userData = await authService.loginUser(email, password);
+    const { email, password, otpToken } = req.body;  // ← thêm otpToken
+    const userData = await authService.loginUser(email, password, otpToken);
     res.status(200).json({ status: 'success', data: userData });
   } catch (error) {
     const statusCode = error.statusCode || 500;

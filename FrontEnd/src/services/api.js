@@ -5,20 +5,25 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 function buildAuthHeaders(user, extraHeaders = {}) {
+  // encodeURIComponent để tránh lỗi non-ISO-8859-1 (tiếng Việt có dấu trong HTTP header)
+  const safeName = user?.fullName ? encodeURIComponent(user.fullName) : '';
   return {
-    'x-user-id': user?.id || '',
+    'x-user-id':   user?.id   || '',
     'x-user-role': user?.role || '',
+    'x-user-name': safeName,
     ...extraHeaders,
   };
 }
 
 // ===== AUTH =====
 
-export async function loginApi(email, password) {
+export async function loginApi(email, password, otpToken = null) {
+  const body = { email, password };
+  if (otpToken) body.otpToken = otpToken;
   const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify(body)
   });
   const result = await response.json();
   return { ok: response.ok, data: result };
@@ -50,7 +55,8 @@ export async function createProductApi(formData, user) {
     headers: buildAuthHeaders(user),
     body: formData
   });
-  return { ok: response.ok };
+  const result = await response.json().catch(() => ({}));
+  return { ok: response.ok, message: result?.message, data: result?.data };
 }
 
 export async function updateProductApi(productId, data, user) {
@@ -59,7 +65,8 @@ export async function updateProductApi(productId, data, user) {
     headers: buildAuthHeaders(user, { 'Content-Type': 'application/json' }),
     body: JSON.stringify(data)
   });
-  return { ok: response.ok };
+  const result = await response.json().catch(() => ({}));
+  return { ok: response.ok, data: result?.data };
 }
 
 export async function deleteProductApi(productId, user) {
@@ -86,10 +93,10 @@ export async function getPendingProductsApi() {
   return result;
 }
 
-export async function updateProductStatusApi(productId, newStatus) {
+export async function updateProductStatusApi(productId, newStatus, user) {
   const response = await fetch(`${API_BASE}/api/v1/admin/products/${productId}/status`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildAuthHeaders(user, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({ status: newStatus })
   });
   const result = await response.json().catch(() => ({}));
@@ -106,11 +113,20 @@ export async function getUsersApi() {
   return result;
 }
 
-export async function createUserByAdminApi(payload) {
+export async function createUserByAdminApi(payload, user) {
   const response = await fetch(`${API_BASE}/api/v1/admin/users`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildAuthHeaders(user, { 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  return { ok: response.ok, data: result };
+}
+
+export async function deleteUserByAdminApi(userId, user) {
+  const response = await fetch(`${API_BASE}/api/v1/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: buildAuthHeaders(user),
   });
   const result = await response.json().catch(() => ({}));
   return { ok: response.ok, data: result };
@@ -184,6 +200,34 @@ export async function changePasswordApi(userId, newPassword) {
 export async function deleteAccountApi(userId) {
   const response = await fetch(`${API_BASE}/api/v1/users/settings/account/${userId}`, {
     method: 'DELETE'
+  });
+  const result = await response.json();
+  return { ok: response.ok, data: result };
+}
+
+// ===== 2FA =====
+
+export async function get2FASetupApi(userId) {
+  const response = await fetch(`${API_BASE}/api/v1/users/2fa/setup?userId=${userId}`);
+  const result = await response.json();
+  return { ok: response.ok, data: result };
+}
+
+export async function enable2FAApi(userId, token) {
+  const response = await fetch(`${API_BASE}/api/v1/users/2fa/enable`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, token }),
+  });
+  const result = await response.json();
+  return { ok: response.ok, data: result };
+}
+
+export async function disable2FAApi(userId, token) {
+  const response = await fetch(`${API_BASE}/api/v1/users/2fa/disable`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, token }),
   });
   const result = await response.json();
   return { ok: response.ok, data: result };

@@ -13,6 +13,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [btnText, setBtnText] = useState('Đăng nhập');
   const [loading, setLoading] = useState(false);
+  // ── 2FA ──
+  const [show2FA, setShow2FA] = useState(false);
+  const [otpToken, setOtpToken] = useState('');
+  const [pendingUserId, setPendingUserId] = useState(null);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [pendingPassword, setPendingPassword] = useState('');
+  // ─────────
   const { handleLogin } = useAuth();
   const navigate = useNavigate();
 
@@ -37,12 +44,88 @@ export default function LoginPage() {
     setLoading(true);
     setBtnText('Đang xử lý...');
     const result = await handleLogin(email, password);
+    if (result.requires2FA) {
+      // Tài khoản bật 2FA → chuyển sang bước nhập OTP
+      setPendingUserId(result.userId);
+      setPendingEmail(email);
+      setPendingPassword(password);
+      setShow2FA(true);
+      setBtnText('Đăng nhập');
+      setLoading(false);
+      return;
+    }
     if (!result.success) {
       await showAlert(result.message, { tone: 'danger' });
       setBtnText('Đăng nhập');
       setLoading(false);
     }
   };
+
+  const onVerify2FA = async (e) => {
+    e.preventDefault();
+    if (!otpToken || otpToken.replace(/\s/g, '').length !== 6) {
+      await showAlert('Vui lòng nhập mã 6 số từ ứng dụng xác thực.', { tone: 'warning' });
+      return;
+    }
+    setLoading(true);
+    setBtnText('Đang xác thực...');
+    const result = await handleLogin(pendingEmail, pendingPassword, otpToken.replace(/\s/g, ''));
+    if (!result.success) {
+      await showAlert(result.message || 'Mã không đúng, thử lại.', { tone: 'danger' });
+      setOtpToken('');
+      setBtnText('Xác nhận');
+      setLoading(false);
+    }
+  };
+
+  // Bước 2: nhập mã OTP
+  if (show2FA) {
+    return (
+      <div className="login-wrapper">
+        <div className="login-bg-pattern"></div>
+        <div className="login-card">
+          <div className="login-header">
+            <div className="login-logo" style={{ background: '#fef3c7' }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <circle cx="12" cy="16" r="1" fill="#d97706"/>
+              </svg>
+            </div>
+            <h2>Xác thực hai yếu tố</h2>
+            <p>Nhập mã 6 số từ ứng dụng Google Authenticator hoặc Authy</p>
+          </div>
+          <form onSubmit={onVerify2FA} className="login-form">
+            <div className="input-with-icon">
+              <span className="icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={7}
+                placeholder="_ _ _ _ _ _"
+                value={otpToken}
+                onChange={(e) => setOtpToken(e.target.value.replace(/[^0-9]/g, ''))}
+                autoFocus
+                style={{ letterSpacing: '0.3em', fontSize: '22px', textAlign: 'center' }}
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {btnText || 'Xác nhận'}
+            </button>
+          </form>
+          <button
+            className="btn-outline-orange mt-16"
+            onClick={() => { setShow2FA(false); setOtpToken(''); setBtnText('Đăng nhập'); }}
+          >
+            ← Quay lại đăng nhập
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-wrapper">

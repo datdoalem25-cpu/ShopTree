@@ -1,12 +1,16 @@
 import { getImageUrl } from '../services/api';
 
 export default function ProductCard({ product, onEdit, onDelete, onPrintQR }) {
-  const { _id, status, productImageUrl, name, quantity, unit, price, qrCodeImageUrl } = product;
+  const { _id, status, productImageUrl, name, quantity, unit, price, qrCodeImageUrl, pendingUpdate } = product;
+
+  // Phân biệt: PENDING do mới tạo, hay PENDING do đang chờ duyệt thay đổi
+  const isAwaitingEdit = status === 'PENDING' && pendingUpdate != null;
 
   let badgeClass = 'badge-pending';
   let statusLabel = 'Chờ duyệt';
-  if (status === 'APPROVED') { badgeClass = 'badge-approved'; statusLabel = 'Đã duyệt'; }
-  if (status === 'REJECTED') { badgeClass = 'badge-rejected'; statusLabel = 'Bị từ chối'; }
+  if (isAwaitingEdit)            { badgeClass = 'badge-pending'; statusLabel = 'Chờ duyệt lại'; }
+  if (status === 'APPROVED')     { badgeClass = 'badge-approved'; statusLabel = 'Đã duyệt'; }
+  if (status === 'REJECTED')     { badgeClass = 'badge-rejected'; statusLabel = 'Bị từ chối'; }
 
   return (
     <div style={{
@@ -14,34 +18,35 @@ export default function ProductCard({ product, onEdit, onDelete, onPrintQR }) {
       borderRadius: '20px',
       overflow: 'hidden',
       boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-      border: '1px solid var(--color-border)',
+      border: isAwaitingEdit ? '2px solid #f59e0b' : '1px solid var(--color-border)',
       display: 'flex',
       flexDirection: 'column',
       transition: 'transform 0.2s',
     }} className="product-card-hover">
       <div style={{ position: 'relative', height: '200px', width: '100%' }}>
-        <img 
-          src={getImageUrl(productImageUrl)} 
-          alt={name} 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        <img
+          src={getImageUrl(productImageUrl)}
+          alt={name}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
         <div style={{ position: 'absolute', top: '15px', right: '15px' }}>
           <span className={`badge ${badgeClass}`}>{statusLabel}</span>
         </div>
       </div>
-      
+
       <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
           <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>{name}</h4>
-          <span style={{ 
-            padding: '4px 10px', borderRadius: '6px', 
-            backgroundColor: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: '600' 
+          <span style={{
+            padding: '4px 10px', borderRadius: '6px',
+            backgroundColor: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: '600'
           }}>
             #{_id ? _id.slice(-6).toUpperCase() : 'BATCH'}
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px' }}>
+        {/* Thông tin hiện tại */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: isAwaitingEdit ? '10px' : '20px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px' }}>
           <div>
             <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Số lượng</div>
             <div style={{ fontWeight: '600', color: '#334155' }}>{quantity} {unit}</div>
@@ -52,31 +57,57 @@ export default function ProductCard({ product, onEdit, onDelete, onPrintQR }) {
           </div>
         </div>
 
+        {/* Banner thông tin thay đổi đang chờ duyệt */}
+        {isAwaitingEdit && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '10px 14px',
+            backgroundColor: '#fffbeb',
+            border: '1px solid #fde68a',
+            borderRadius: '10px',
+            fontSize: '12px',
+            color: '#92400e',
+          }}>
+            <div style={{ fontWeight: '700', marginBottom: '6px' }}>⏳ Thay đổi đang chờ admin duyệt:</div>
+            {pendingUpdate.name        != null && <div>• Tên: <strong>{pendingUpdate.name}</strong></div>}
+            {pendingUpdate.description != null && <div>• Mô tả: <strong>{pendingUpdate.description || '(trống)'}</strong></div>}
+            {pendingUpdate.quantity    != null && <div>• Số lượng: <strong>{pendingUpdate.quantity} {pendingUpdate.unit ?? unit}</strong></div>}
+            {pendingUpdate.unit        != null && pendingUpdate.quantity == null && <div>• Đơn vị: <strong>{pendingUpdate.unit}</strong></div>}
+            {pendingUpdate.price       != null && <div>• Đơn giá: <strong>{Number(pendingUpdate.price).toLocaleString()}đ</strong></div>}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
-          <button 
+          <button
             onClick={() => onEdit(product)}
+            disabled={status === 'PENDING'}
+            title={status === 'PENDING' ? 'Sản phẩm đang chờ duyệt, không thể sửa' : 'Sửa sản phẩm'}
             style={{
               flex: 1, padding: '10px 0', background: 'white',
-              border: '1px solid #e2e8f0', borderRadius: '10px', color: '#475569',
-              fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'
+              border: '1px solid #e2e8f0', borderRadius: '10px',
+              color: status === 'PENDING' ? '#cbd5e1' : '#475569',
+              fontSize: '13px', fontWeight: '600',
+              cursor: status === 'PENDING' ? 'not-allowed' : 'pointer',
+              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
+              opacity: status === 'PENDING' ? 0.5 : 1,
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Sửa
           </button>
-          <button 
-             onClick={() => onDelete(_id)}
-             style={{
+          <button
+            onClick={() => onDelete(_id)}
+            style={{
               flex: 1, padding: '10px 0', background: 'white',
               border: '1px solid #fee2e2', borderRadius: '10px', color: '#ef4444',
               fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'
             }}
           >
-             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             Xóa
           </button>
           {status === 'APPROVED' && (
-            <button 
+            <button
               onClick={() => onPrintQR(product)}
               title="In mã QR"
               style={{

@@ -7,7 +7,7 @@ import { showAlert, showConfirm } from '../services/dialog';
 import './AdminPage.css';
 
 export default function AdminPage() {
-  const { user, logout } = useAuth('ADMIN');
+  const { user, logout, ready } = useAuth('ADMIN');
   const {
     users,
     pendingProducts,
@@ -18,7 +18,7 @@ export default function AdminPage() {
     updateStatus,
     createUser,
     loadingAudit,
-  } = useAdmin();
+  } = useAdmin(user);
   const [activeTab, setActiveTab] = useState('tab-overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
@@ -51,7 +51,8 @@ export default function AdminPage() {
   useEffect(() => {
     loadUsers();
     loadPendingProducts();
-  }, [loadUsers, loadPendingProducts]);
+    loadAuditLogs(); // tải sẵn để hiển thị ngay trên tổng quan
+  }, [loadUsers, loadPendingProducts, loadAuditLogs]);
 
   useEffect(() => {
     if (activeTab === 'tab-logs') {
@@ -122,6 +123,7 @@ export default function AdminPage() {
 
     setShowCreateUserModal(false);
     setNewUser({ fullName: '', email: '', role: 'FARMER', password: '' });
+    loadAuditLogs();
     await showAlert('Đã thêm người dùng thành công.', { tone: 'success' });
   };
 
@@ -231,6 +233,7 @@ export default function AdminPage() {
 
     setConfirmState((prev) => ({ ...prev, isSubmitting: true }));
     const result = await updateStatus(confirmState.product._id, confirmState.nextStatus);
+    if (result?.ok) loadAuditLogs();
 
     setConfirmState({
       isOpen: false,
@@ -259,6 +262,7 @@ export default function AdminPage() {
     logout();
   };
 
+  if (!ready) return null;
   if (!user) return null;
 
   const getPageTitle = () => {
@@ -340,7 +344,7 @@ export default function AdminPage() {
             <div className="fade-in">
                <div className="stats-grid">
                   <StatCard label="Tổng người dùng" value={users.length} icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>} color="#2563eb" />
-                  <StatCard label="Người dùng mới (tháng)" value="12" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>} color="#16a34a" />
+                  <StatCard label="Người dùng mới (tháng)" value={users.filter(u => new Date(u.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length} icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>} color="#16a34a" />
                   <StatCard label="Vô hiệu hóa" value="0" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line></svg>} color="#dc2626" />
                   <StatCard label="Hoạt động audit (24h)" value="0" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>} color="#7c3aed" />
                </div>
@@ -373,9 +377,34 @@ export default function AdminPage() {
                   </div>
                   <div className="recent-card">
                     <h3>Hoạt động gần đây</h3>
+                    {auditLogs.length === 0 ? (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'clamp(140px, 24vw, 200px)', color: '#94a3b8', fontSize: '14px', fontStyle: 'italic' }}>
-                       Chưa có hoạt động nào
-                    </div>
+                        Chưa có hoạt động nào
+                      </div>
+                    ) : (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {auditLogs.slice(0, 8).map((log) => (
+                          <li key={log.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+                            <span style={{
+                              flexShrink: 0, width: 8, height: 8, borderRadius: '50%', marginTop: 6,
+                              background: log.action === 'APPROVE_PRODUCT' ? '#22c55e'
+                                        : log.action === 'REJECT_PRODUCT'  ? '#ef4444'
+                                        : log.action === 'CREATE_USER'     ? '#3b82f6'
+                                        : log.action === 'DELETE_USER'     ? '#f97316'
+                                        : '#94a3b8'
+                            }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {log.detail || log.action}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 2 }}>
+                                {log.actor} · {new Date(log.createdAt).toLocaleString('vi-VN')}
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                </div>
 
@@ -578,21 +607,28 @@ export default function AdminPage() {
         </div>
       )}
 
-      {confirmState.isOpen && (
+      {confirmState.isOpen && (() => {
+        const isEditReq = confirmState.product?.pendingUpdate != null;
+        const isApprove = confirmState.nextStatus === 'APPROVED';
+        return (
         <div className="admin-popup-overlay" onClick={closeApprovalConfirm}>
           <div className="admin-popup-card" onClick={(e) => e.stopPropagation()}>
-            <div className={`admin-popup-icon ${confirmState.nextStatus === 'APPROVED' ? 'is-approve' : 'is-reject'}`}>
-              {confirmState.nextStatus === 'APPROVED' ? '✓' : '!'}
+            <div className={`admin-popup-icon ${isApprove ? 'is-approve' : 'is-reject'}`}>
+              {isApprove ? '✓' : '!'}
             </div>
             <h3>
-              {confirmState.nextStatus === 'APPROVED'
-                ? 'Xác nhận duyệt lô hàng'
-                : 'Xác nhận từ chối lô hàng'}
+              {isApprove
+                ? (isEditReq ? 'Duyệt yêu cầu sửa đổi' : 'Xác nhận duyệt lô hàng')
+                : (isEditReq ? 'Từ chối yêu cầu sửa đổi' : 'Xác nhận từ chối lô hàng')}
             </h3>
             <p>
-              {confirmState.nextStatus === 'APPROVED'
-                ? 'Bạn muốn phê duyệt lô hàng này vào hệ thống?'
-                : 'Bạn muốn từ chối lô hàng này? Hành động này sẽ cập nhật trạng thái ngay.'}
+              {isApprove
+                ? (isEditReq
+                    ? 'Thông tin thay đổi sẽ được áp dụng ngay vào lô hàng và trạng thái trở về Đã duyệt.'
+                    : 'Bạn muốn phê duyệt lô hàng này vào hệ thống?')
+                : (isEditReq
+                    ? 'Yêu cầu sửa đổi sẽ bị hủy. Lô hàng giữ nguyên thông tin cũ và trở về trạng thái Bị từ chối.'
+                    : 'Bạn muốn từ chối lô hàng này? Hành động này sẽ cập nhật trạng thái ngay.')}
             </p>
             <div className="admin-popup-product-name">{confirmState.product?.name || 'Lô hàng chưa đặt tên'}</div>
 
@@ -607,20 +643,22 @@ export default function AdminPage() {
               </button>
               <button
                 type="button"
-                className={`admin-popup-btn primary ${confirmState.nextStatus === 'APPROVED' ? 'approve' : 'reject'}`}
+                className={`admin-popup-btn primary ${isApprove ? 'approve' : 'reject'}`}
                 onClick={submitApproval}
                 disabled={confirmState.isSubmitting}
               >
                 {confirmState.isSubmitting
                   ? 'Đang xử lý...'
-                  : confirmState.nextStatus === 'APPROVED'
-                    ? 'Xác nhận duyệt'
-                    : 'Xác nhận từ chối'}
+                  : isApprove
+                    ? (isEditReq ? 'Duyệt thay đổi' : 'Xác nhận duyệt')
+                    : (isEditReq ? 'Từ chối thay đổi' : 'Xác nhận từ chối')}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
+      )
 
       {resultPopup.isOpen && (
         <div className="admin-popup-overlay" onClick={closeResultPopup}>

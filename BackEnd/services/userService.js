@@ -1,4 +1,7 @@
+const bcrypt = require('bcrypt');
 const User = require('../models/User');
+
+const SALT_ROUNDS = 10;
 
 exports.updateFullName = async (userId, newFullName) => {
   return await User.findByIdAndUpdate(userId, { fullName: newFullName }, { new: true });
@@ -15,8 +18,8 @@ exports.updateEmail = async (userId, newEmail) => {
 };
 
 exports.updatePassword = async (userId, newPassword) => {
-  // Hệ thống hiện tại lưu plaintext theo model ban đầu, nên ta update thẳng
-  return await User.findByIdAndUpdate(userId, { password: newPassword }, { new: true });
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  return await User.findByIdAndUpdate(userId, { password: hashedPassword }, { new: true });
 };
 
 exports.deleteAccount = async (userId) => {

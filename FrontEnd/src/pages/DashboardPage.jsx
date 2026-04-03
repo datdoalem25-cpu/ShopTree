@@ -7,12 +7,12 @@ import ProductCard from '../components/ProductCard';
 import StatCard from '../components/StatCard';
 import DiaryCard from '../components/DiaryCard';
 import Modal from '../components/Modal';
-import { getImageUrl } from '../services/api';
+import { getImageUrl, get2FASetupApi, enable2FAApi, disable2FAApi } from '../services/api';
 import { showAlert, showConfirm } from '../services/dialog';
 import './DashboardPage.css';
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth('FARMER');
+  const { user, logout, ready } = useAuth('FARMER');
   const { products, stats, createProduct, updateProduct, deleteProduct } = useProducts(user);
   const { diaries, loading: diaryLoading, loadDiaries, addDiary } = useDiary(user);
   const { updateFullName, updateEmailInline, changeEmail, changePassword, deleteAccount } = useSettings();
@@ -34,6 +34,16 @@ export default function DashboardPage() {
   const [notificationItems, setNotificationItems] = useState([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [qrDownloading, setQrDownloading] = useState(false);
+
+  // ── 2FA state ────────────────────────────────────────
+  const [twoFAEnabled, setTwoFAEnabled] = useState(user?.twoFactorEnabled || false);
+  const [twoFAModal, setTwoFAModal] = useState(false);   // modal setup 2FA
+  const [twoFAQR, setTwoFAQR] = useState(null);      // data URL QR
+  const [twoFASecret, setTwoFASecret] = useState('');    // backup secret
+  const [twoFAToken, setTwoFAToken]  = useState('');    // mã user nhập
+  const [twoFAStep, setTwoFAStep] = useState('qr');  // 'qr' | 'verify' | 'disable'
+  const [twoFALoading, setTwoFALoading] = useState(false);
+  // ─────────────────────────────────────────────────────
 
   const productFormRef = useRef(null);
   const diaryFormRef = useRef(null);
@@ -88,6 +98,7 @@ export default function DashboardPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  if (!ready) return null;
   if (!user) return null;
 
   const formatNotificationTime = (value) => {
@@ -109,11 +120,78 @@ export default function DashboardPage() {
     setUnreadNotificationCount(0);
   };
 
+  // ── 2FA handlers ─────────────────────────────────────
+  const open2FASetup = async () => {
+    const userId = user?.id || user?._id;
+    if (!userId) { alert('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.'); return; }
+    setTwoFALoading(true);
+    const res = await get2FASetupApi(userId);
+    setTwoFALoading(false);
+    if (!res.ok) { alert('Lỗi khởi tạo 2FA: ' + (res.data?.message || 'Lỗi không xác định')); return; }
+    setTwoFAQR(res.data.data.qrCodeUrl);
+    setTwoFASecret(res.data.data.secret);
+    setTwoFAToken('');
+    setTwoFAStep('qr');
+    setTwoFAModal(true);
+  };
+
+  const handle2FAEnable = async () => {
+    if (!twoFAToken || twoFAToken.length !== 6) { alert('Nhập đủ 6 chữ số'); return; }
+    const userId = user?.id || user?._id;
+    if (!userId) { alert('Không tìm thấy thông tin người dùng.'); return; }
+    setTwoFALoading(true);
+    const res = await enable2FAApi(userId, twoFAToken);
+    setTwoFALoading(false);
+    if (res.ok) {
+      setTwoFAEnabled(true);
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.setItem('user', JSON.stringify({ ...stored, twoFactorEnabled: true }));
+      setTwoFAModal(false);
+      setTwoFAToken('');
+    } else {
+      alert(res.data?.message || 'Mã không đúng');
+      setTwoFAToken('');
+    }
+  };
+
+  const handle2FADisable = async () => {
+    if (!twoFAToken || twoFAToken.length !== 6) { alert('Nhập đủ 6 chữ số'); return; }
+    const userId = user?.id || user?._id;
+    if (!userId) { alert('Không tìm thấy thông tin người dùng.'); return; }
+    setTwoFALoading(true);
+    const res = await disable2FAApi(userId, twoFAToken);
+    setTwoFALoading(false);
+    if (res.ok) {
+      setTwoFAEnabled(false);
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.setItem('user', JSON.stringify({ ...stored, twoFactorEnabled: false }));
+      setTwoFAModal(false);
+      setTwoFAToken('');
+    } else {
+      alert(res.data?.message || 'Mã không đúng');
+      setTwoFAToken('');
+    }
+  };
+  // ─────────────────────────────────────────────────────
+
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    
+
     if (editingProduct) {
+      // Nếu sản phẩm đang APPROVED → cảnh báo trước khi gửi yêu cầu sửa đổi
+      if (editingProduct.status === 'APPROVED') {
+        const confirmed = await showConfirm(
+          'Sản phẩm này đã được duyệt. Thay đổi của bạn sẽ không được lưu, hãy tạo lại sản phẩm nếu cần Admin phê duyệt lại.',
+          {
+            title: 'Tôi hiểu rồi.',
+            tone: 'warning',
+            confirmText: 'Gửi yêu cầu sửa',
+            cancelText: 'Hủy',
+          }
+        );
+        if (!confirmed) return;
+      }
       const data = {
         name: formData.get('name'),
         description: formData.get('description'),
@@ -134,6 +212,7 @@ export default function DashboardPage() {
       }
     }
   };
+
 
   const openEditModal = (product) => {
     setEditingProduct(product);
@@ -401,35 +480,26 @@ export default function DashboardPage() {
               <div className="activity-panel">
                 <h3>Hoạt động gần đây</h3>
                 <div className="activity-timeline">
-                  {/* Mock activities for purely aesthetic purposes since backend does not supply timeline yet */}
-                  <div className="timeline-item">
-                    <div className="timeline-icon bg-success-light text-success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-                    <div className="timeline-content">
-                      <p>Sản phẩm 'Cà chua Đà Lạt' đã được phê duyệt</p>
-                      <span>5 phút trước</span>
-                    </div>
-                  </div>
-                  <div className="timeline-item">
-                    <div className="timeline-icon bg-primary-light text-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></div>
-                    <div className="timeline-content">
-                      <p>Bạn đã thêm sản phẩm 'Bơ sáp Đắk Lắk'</p>
-                      <span>1 giờ trước</span>
-                    </div>
-                  </div>
-                  <div className="timeline-item">
-                    <div className="timeline-icon bg-warning-light text-warning"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-                    <div className="timeline-content">
-                      <p>Sản phẩm 'Xà lách thủy canh' đang chờ duyệt</p>
-                      <span>3 giờ trước</span>
-                    </div>
-                  </div>
-                  <div className="timeline-item">
-                    <div className="timeline-icon bg-muted-light text-muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg></div>
-                    <div className="timeline-content">
-                      <p>Bạn đã cập nhật nhật ký mùa vụ tháng 3</p>
-                      <span>1 ngày trước</span>
-                    </div>
-                  </div>
+                  {products.length === 0 ? (
+                    <p className="text-muted">Bạn chưa có hoạt động nào. Hãy thêm sản phẩm để bắt đầu!</p>
+                  ) : (
+                    products
+                      .filter((p) => p.status === 'APPROVED' || p.status === 'REJECTED')
+                      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+                      .slice(0, 5)
+                      .map((p) => (
+                        <div className="activity-item" key={p._id}>
+                          <div className={`activity-status ${p.status === 'APPROVED' ? 'ok' : 'fail'}`}>
+                            {p.status === 'APPROVED' ? '✓' : '!'}
+                          </div>
+                          <div className="activity-text">
+                            Sản phẩm <strong>{p.name}</strong>{' '}
+                            {p.status === 'APPROVED' ? 'đã được duyệt.' : 'đã bị từ chối.'}
+                            <div className="activity-time">{formatNotificationTime(p.createdAt)}</div>
+                          </div>
+                        </div>
+                      ))
+                  )}
                 </div>
               </div>
             </div>
@@ -617,10 +687,21 @@ export default function DashboardPage() {
 
                 <div className="setting-row">
                   <div className="setting-info">
-                    <h4>Xác thực hai yếu tố</h4>
-                    <p>Chưa kích hoạt</p>
+                    <h4>Xác thực hai yếu tố (2FA)</h4>
+                    <p style={{ color: twoFAEnabled ? '#16a34a' : '#94a3b8', fontWeight: twoFAEnabled ? 600 : 400 }}>
+                      {twoFAEnabled ? '🔒 Đang bật — tài khoản được bảo vệ' : 'Chưa kích hoạt'}
+                    </p>
                   </div>
-                  <button className="action-pill">Kích hoạt</button>
+                  {twoFAEnabled ? (
+                    <button className="action-pill" style={{ color: '#ef4444', borderColor: '#fecaca' }}
+                      onClick={() => { setTwoFAStep('disable'); setTwoFAToken(''); setTwoFAModal(true); }}>
+                      Tắt 2FA
+                    </button>
+                  ) : (
+                    <button className="action-pill" onClick={open2FASetup} disabled={twoFALoading}>
+                      {twoFALoading ? 'Đang tải...' : 'Kích hoạt'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -636,6 +717,96 @@ export default function DashboardPage() {
           )}
         </main>
       </div>
+
+
+      {/* ── MODAL 2FA ───────────────────────────────────── */}
+      {twoFAModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={() => setTwoFAModal(false)}>
+          <div style={{
+            background: 'white', borderRadius: '20px', padding: '32px',
+            width: '100%', maxWidth: '420px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+          }} onClick={e => e.stopPropagation()}>
+
+            {/* Bước QR: quét QR để thêm vào app */}
+            {twoFAStep === 'qr' && (
+              <>
+                <h3 style={{ margin: '0 0 8px', fontSize: '20px' }}>🔒 Kích hoạt xác thực 2 yếu tố</h3>
+                <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>
+                  Quét mã QR bằng <strong>Google Authenticator</strong> hoặc <strong>Authy</strong>, sau đó nhấn Tiếp tục.
+                </p>
+                {twoFAQR && (
+                  <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                    <img src={twoFAQR} alt="QR 2FA" style={{ width: '200px', height: '200px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  </div>
+                )}
+                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 14px', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Hoặc nhập thủ công secret key:</div>
+                  <code style={{ fontSize: '13px', letterSpacing: '0.1em', color: '#334155', wordBreak: 'break-all' }}>{twoFASecret}</code>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setTwoFAModal(false)} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontWeight: 600 }}>Hủy</button>
+                  <button onClick={() => setTwoFAStep('verify')} style={{ flex: 2, padding: '10px', borderRadius: '10px', border: 'none', background: '#14532d', color: 'white', cursor: 'pointer', fontWeight: 700 }}>Tiếp tục →</button>
+                </div>
+              </>
+            )}
+
+            {/* Bước verify: nhập mã để xác nhận đã quét đúng */}
+            {twoFAStep === 'verify' && (
+              <>
+                <h3 style={{ margin: '0 0 8px', fontSize: '20px' }}>Nhập mã xác nhận</h3>
+                <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>
+                  Mở ứng dụng xác thực và nhập mã <strong>6 chữ số</strong> hiện tại để hoàn tất kích hoạt.
+                </p>
+                <input
+                  type="text" inputMode="numeric" maxLength={6}
+                  placeholder="_ _ _ _ _ _"
+                  value={twoFAToken}
+                  onChange={e => setTwoFAToken(e.target.value.replace(/[^0-9]/g, ''))}
+                  autoFocus
+                  style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '24px', letterSpacing: '0.4em', textAlign: 'center', boxSizing: 'border-box', marginBottom: '16px', outline: 'none' }}
+                />
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setTwoFAStep('qr')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontWeight: 600 }}>← Quay lại</button>
+                  <button onClick={handle2FAEnable} disabled={twoFALoading || twoFAToken.length !== 6}
+                    style={{ flex: 2, padding: '10px', borderRadius: '10px', border: 'none', background: twoFAToken.length === 6 ? '#14532d' : '#94a3b8', color: 'white', cursor: twoFAToken.length === 6 ? 'pointer' : 'not-allowed', fontWeight: 700 }}>
+                    {twoFALoading ? 'Đang xác thực...' : '✓ Xác nhận & Bật 2FA'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Bước disable: nhập mã để tắt 2FA */}
+            {twoFAStep === 'disable' && (
+              <>
+                <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#dc2626' }}>Tắt xác thực 2 yếu tố</h3>
+                <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>
+                  Nhập mã xác thực hiện tại để xác nhận tắt 2FA. Tài khoản sẽ kém an toàn hơn.
+                </p>
+                <input
+                  type="text" inputMode="numeric" maxLength={6}
+                  placeholder="_ _ _ _ _ _"
+                  value={twoFAToken}
+                  onChange={e => setTwoFAToken(e.target.value.replace(/[^0-9]/g, ''))}
+                  autoFocus
+                  style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #fecaca', fontSize: '24px', letterSpacing: '0.4em', textAlign: 'center', boxSizing: 'border-box', marginBottom: '16px', outline: 'none' }}
+                />
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setTwoFAModal(false)} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontWeight: 600 }}>Hủy</button>
+                  <button onClick={handle2FADisable} disabled={twoFALoading || twoFAToken.length !== 6}
+                    style={{ flex: 2, padding: '10px', borderRadius: '10px', border: 'none', background: twoFAToken.length === 6 ? '#dc2626' : '#94a3b8', color: 'white', cursor: twoFAToken.length === 6 ? 'pointer' : 'not-allowed', fontWeight: 700 }}>
+                    {twoFALoading ? 'Đang xử lý...' : 'Xác nhận tắt 2FA'}
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────── */}
 
       {/* MODALS */}
       <Modal isOpen={modalType === 'product'} onClose={() => { setModalType(null); setEditingProduct(null); }}>

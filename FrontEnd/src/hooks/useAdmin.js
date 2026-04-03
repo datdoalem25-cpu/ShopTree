@@ -4,10 +4,11 @@ import {
   getPendingProductsApi,
   updateProductStatusApi,
   createUserByAdminApi,
+  deleteUserByAdminApi,
   getAuditLogsApi,
 } from '../services/api';
 
-export function useAdmin() {
+export function useAdmin(user) {
   const [users, setUsers] = useState([]);
   const [pendingProducts, setPendingProducts] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -41,30 +42,24 @@ export function useAdmin() {
 
   const updateStatus = async (productId, newStatus) => {
     try {
-      const result = await updateProductStatusApi(productId, newStatus);
+      const result = await updateProductStatusApi(productId, newStatus, user);
       if (!result.ok) {
-        return {
-          ok: false,
-          message: result.message || 'Không thể cập nhật trạng thái lô hàng.'
-        };
+        return { ok: false, message: result.message || 'Không thể cập nhật trạng thái lô hàng.' };
       }
-
-      await loadPendingProducts();
+      // Load lại danh sách - tách riêng để lỗi ở đây không ảnh hưởng kết quả
+      loadPendingProducts().catch(() => {});
       return {
         ok: true,
-        message:
-          newStatus === 'APPROVED'
-            ? 'Đã duyệt lô hàng thành công.'
-            : 'Đã từ chối lô hàng thành công.'
+        message: newStatus === 'APPROVED' ? 'Đã duyệt lô hàng thành công.' : 'Đã từ chối lô hàng thành công.',
       };
-    } catch {
-      return { ok: false, message: 'Lỗi hệ thống.' };
+    } catch (err) {
+      return { ok: false, message: err?.message || 'Lỗi hệ thống.' };
     }
   };
 
   const createUser = async (payload) => {
     try {
-      const result = await createUserByAdminApi(payload);
+      const result = await createUserByAdminApi(payload, user);
       if (!result.ok) {
         return { ok: false, message: result.data?.message || 'Không thể tạo người dùng.' };
       }
@@ -72,6 +67,19 @@ export function useAdmin() {
       return { ok: true, message: 'Tạo người dùng thành công.' };
     } catch {
       return { ok: false, message: 'Lỗi hệ thống khi tạo người dùng.' };
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      const result = await deleteUserByAdminApi(userId, user);
+      if (!result.ok) {
+        return { ok: false, message: result.data?.message || 'Không thể xóa người dùng.' };
+      }
+      await loadUsers();
+      return { ok: true, message: 'Đã xóa người dùng.' };
+    } catch {
+      return { ok: false, message: 'Lỗi hệ thống khi xóa người dùng.' };
     }
   };
 
@@ -93,6 +101,6 @@ export function useAdmin() {
     users, pendingProducts, auditLogs,
     loadingUsers, loadingPending, loadingAudit,
     loadUsers, loadPendingProducts, loadAuditLogs,
-    updateStatus, createUser
+    updateStatus, createUser, deleteUser,
   };
 }

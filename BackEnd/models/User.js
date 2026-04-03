@@ -8,7 +8,13 @@ const UserSchema = new mongoose.Schema({
     type: String, 
     enum: ['USER', 'FARMER', 'ADMIN'],
     default: 'USER' 
-  }
+  },
+
+  // ── 2FA ──────────────────────────────────────────────
+  twoFactorSecret:  { type: String, default: null },   // TOTP secret
+  twoFactorEnabled: { type: Boolean, default: false },  // đã kích hoạt chưa
+  // ─────────────────────────────────────────────────────
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);

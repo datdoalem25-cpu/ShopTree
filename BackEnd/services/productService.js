@@ -39,10 +39,7 @@ const createProduct = async ({ farmerName, farmerUserId, name, description, quan
     publicId: `product-${safeBatch}`,
   });
 
-  const qrDataUrl = await QRCode.toDataURL(qrCodeContent, {
-    margin: 1,
-    width: 720,
-  });
+  const qrDataUrl = await QRCode.toDataURL(qrCodeContent, { margin: 1, width: 720 });
   const qrImageUpload = await uploadDataUrl({
     dataUrl: qrDataUrl,
     folder: 'nongsan/qrcodes',
@@ -58,26 +55,28 @@ const createProduct = async ({ farmerName, farmerUserId, name, description, quan
     unit,
     price,
     productImageUrl: productImageUpload.secure_url,
-    batchSerialNumber, qrCodeContent,
+    batchSerialNumber,
+    qrCodeContent,
     qrCodeImageUrl: qrImageUpload.secure_url,
-    status: 'PENDING'
+    status: 'PENDING',
+    pendingUpdate: null,
   });
 
   await newProduct.save();
   return newProduct;
 };
 
-// Lấy tất cả sản phẩm (mới nhất lên đầu)
+// Lấy tất cả sản phẩm
 const getAllProducts = async () => {
   return await Product.find().sort({ createdAt: -1 });
 };
 
-// Lấy sản phẩm theo chủ sở hữu (nông dân đăng nhập)
+// Lấy sản phẩm theo chủ sở hữu
 const getProductsByOwner = async (ownerId, ownerName) => {
   return await Product.find(buildOwnerFilter(ownerId, ownerName)).sort({ createdAt: -1 });
 };
 
-// Tra cứu sản phẩm theo mã lô hàng
+// Tra cứu sản phẩm theo mã lô
 const trackProduct = async (batchSerial) => {
   const product = await Product.findOne({ batchSerialNumber: batchSerial });
   if (!product) {
@@ -88,7 +87,7 @@ const trackProduct = async (batchSerial) => {
   return product;
 };
 
-// Cập nhật sản phẩm
+// Cập nhật sản phẩm (nội bộ, không kiểm tra quyền)
 const updateProduct = async (id, data) => {
   const product = await Product.findByIdAndUpdate(id, data, { new: true });
   if (!product) {
@@ -99,33 +98,53 @@ const updateProduct = async (id, data) => {
   return product;
 };
 
-// Cập nhật sản phẩm có kiểm tra quyền sở hữu
+/**
+ * Nông dân sửa sản phẩm (có kiểm tra quyền sở hữu).
+ *
+ * - Nếu status === 'APPROVED': lưu vào pendingUpdate, đặt status = 'PENDING' → admin duyệt lại
+ * - Nếu status === 'PENDING' hoặc 'REJECTED': cập nhật trực tiếp
+ */
 const updateProductOwned = async (id, data, ownerId, ownerName) => {
   const allowedFields = ['name', 'description', 'quantity', 'unit', 'price'];
   const safeUpdate = {};
-
   allowedFields.forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       safeUpdate[field] = data[field];
     }
   });
 
-  const product = await Product.findOneAndUpdate(
-    { _id: id, ...buildOwnerFilter(ownerId, ownerName) },
-    safeUpdate,
-    { new: true }
-  );
+  // BUG FIX: findOne chỉ nhận filter, KHÔNG truyền safeUpdate vào đây
+  const existing = await Product.findOne({
+    _id: id,
+    ...buildOwnerFilter(ownerId, ownerName),
+  });
 
-  if (!product) {
+  if (!existing) {
     const error = new Error('Bạn không có quyền chỉnh sửa sản phẩm này hoặc sản phẩm không tồn tại!');
     error.statusCode = 403;
     throw error;
   }
 
+  let updatePayload;
+  if (existing.status === 'APPROVED') {
+    // Sản phẩm đã duyệt → lưu tạm, chờ admin duyệt lại
+    updatePayload = { pendingUpdate: safeUpdate, status: 'PENDING' };
+  } else {
+    // PENDING / REJECTED → cập nhật thẳng
+    updatePayload = { ...safeUpdate, pendingUpdate: null };
+  }
+
+  // BUG FIX: phải dùng { _id: id } chứ không phải id trực tiếp
+  const product = await Product.findOneAndUpdate(
+    { _id: id, ...buildOwnerFilter(ownerId, ownerName) },
+    updatePayload,
+    { new: true }
+  );
+
   return product;
 };
 
-// Xóa sản phẩm
+// Xóa sản phẩm (nội bộ)
 const deleteProduct = async (id) => {
   const product = await Product.findByIdAndDelete(id);
   if (!product) {
@@ -136,9 +155,12 @@ const deleteProduct = async (id) => {
   return product;
 };
 
-// Xóa sản phẩm có kiểm tra quyền sở hữu
+// Xóa sản phẩm (có kiểm tra quyền)
 const deleteProductOwned = async (id, ownerId, ownerName) => {
-  const product = await Product.findOneAndDelete({ _id: id, ...buildOwnerFilter(ownerId, ownerName) });
+  const product = await Product.findOneAndDelete({
+    _id: id,
+    ...buildOwnerFilter(ownerId, ownerName),
+  });
   if (!product) {
     const error = new Error('Bạn không có quyền xóa sản phẩm này hoặc sản phẩm không tồn tại!');
     error.statusCode = 403;
