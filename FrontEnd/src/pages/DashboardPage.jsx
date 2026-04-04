@@ -61,6 +61,8 @@ export default function DashboardPage() {
     setProfileEmail(user.email || '');
     setDraftName(user.fullName || '');
     setDraftEmail(user.email || '');
+    // Sync trạng thái 2FA từ user (quan trọng: user load async sau mount)
+    setTwoFAEnabled(user.twoFactorEnabled || false);
   }, [user]);
 
   useEffect(() => {
@@ -145,7 +147,9 @@ export default function DashboardPage() {
     if (res.ok) {
       setTwoFAEnabled(true);
       const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...stored, twoFactorEnabled: true }));
+      const updated = { ...stored, twoFactorEnabled: true };
+      localStorage.setItem('user', JSON.stringify(updated));
+      sessionStorage.setItem('user', JSON.stringify(updated));
       setTwoFAModal(false);
       setTwoFAToken('');
     } else {
@@ -164,7 +168,9 @@ export default function DashboardPage() {
     if (res.ok) {
       setTwoFAEnabled(false);
       const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...stored, twoFactorEnabled: false }));
+      const updated = { ...stored, twoFactorEnabled: false };
+      localStorage.setItem('user', JSON.stringify(updated));
+      sessionStorage.setItem('user', JSON.stringify(updated));
       setTwoFAModal(false);
       setTwoFAToken('');
     } else {
@@ -321,10 +327,12 @@ export default function DashboardPage() {
   const getInitials = (name) => name ? name.charAt(0).toUpperCase() : 'U';
 
   const syncLocalUser = (changes) => {
-    const stored = localStorage.getItem('user');
+    const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (!stored) return;
     const parsed = JSON.parse(stored);
-    localStorage.setItem('user', JSON.stringify({ ...parsed, ...changes }));
+    const updated = JSON.stringify({ ...parsed, ...changes });
+    localStorage.setItem('user', updated);
+    sessionStorage.setItem('user', updated);
   };
 
   const handleSaveName = async () => {
